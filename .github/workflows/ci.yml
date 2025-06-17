@@ -1,5 +1,8 @@
 name: CI Pipeline
 
+env:
+  ACTIONS_STEP_DEBUG: true
+
 on:
   push:
     branches:
@@ -18,7 +21,11 @@ jobs:
         uses: actions/checkout@v3
 
       - name: Validate script syntax
-        run: bash -n status-check.sh
+        run: |
+          if ! bash -n status-check.sh; then
+            echo "::error::Falha na validação de sintaxe do script";
+            exit 1;
+          fi
 
   test:
     name: Run Tests
@@ -30,7 +37,8 @@ jobs:
         uses: actions/checkout@v3
 
       - name: Execute tests
-        run: echo "Running tests" && exit 0
+        run: |
+          echo "Running tests" && exit 0 || echo "::warning::Algum teste falhou"
 
   package:
     name: Package Artifact
@@ -51,3 +59,18 @@ jobs:
         with:
           name: test-report
           path: report.zip
+
+      - name: Generate job summary
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const { summary, context } = require('@actions/core');
+            summary.addHeading('📊 CI Summary');
+            summary.addList([
+              `OS Runner: \${process.env.RUNNER_OS}`,
+              `Ref Name: \${context.ref.replace('refs/heads/', '')}`,
+              `Validate: \${process.env.JOB_STATUS(validate)}`,
+              `Test: \${process.env.JOB_STATUS(test)}`,
+              `Artifact: [Download report](\${process.env.GITHUB_SERVER_URL}/\${context.repository}/suites/\${context.runId}/artifacts)`,
+            ]);
+            summary.write();
