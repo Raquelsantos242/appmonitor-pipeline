@@ -1,65 +1,54 @@
-  name: CI Pipeline
+name: CI Pipeline
 
-  env:
-    ACTIONS_STEP_DEBUG: true
+env:
+  ACTIONS_STEP_DEBUG: true
 
-  on:
-    push:
-      branches:
-        - ci/setup
-    pull_request:
-      branches:
-        - ci/setup
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
 
-  jobs:
-    validate:
-      name: Validate Script Syntax
-      runs-on: ubuntu-latest
-      steps:
-        - uses: actions/checkout@v3
-        - name: Validate script syntax
-          run: |
-            if ! bash -n status-check.sh; then
-              echo "::error::Falha na validação de sintaxe do script";
-              exit 1;
-            fi
+jobs:
+  validate:
+    name: Validate Syntax
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - run: |
+          if ! bash -n status-check.sh; then
+            echo "::error::Syntax error in script"
+            exit 1
+          fi
 
-    test:
-      name: Run Tests
-      runs-on: ubuntu-latest
-      needs: validate
-      steps:
-        - uses: actions/checkout@v3
-        - name: Execute tests
-          run: |
-            echo "Running tests" && exit 0 || echo "::warning::Algum teste falhou"
+  test:
+    name: Run Tests
+    runs-on: ubuntu-latest
+    needs: validate
+    steps:
+      - uses: actions/checkout@v3
+      - run: |
+          echo "::warning::Simulated tests - implement real tests"
+          echo "Running tests" && exit 0
 
-    package:
-      name: Package Artifact
-      runs-on: ubuntu-latest
-      needs: test
-      steps:
-        - uses: actions/checkout@v3
-        - name: Create report artifact
-          run: |
-            echo "Test Results: PASS" > report.txt
-            zip report.zip report.txt
-        - name: Upload artifact
-          uses: actions/upload-artifact@v4
-          with:
-            name: test-report
-            path: report.zip
-        - name: Generate job summary
-          uses: actions/github-script@v6
-          with:
-            script: |
-              await core.summary
-                .addHeading('CI Summary')
-                .addList([
-                  `OS Runner: ${process.env.RUNNER_OS}`,
-                  `Ref Name: ${context.ref.replace('refs/heads/', '')}`,
-                  `Artifact: [Download report](${process.env.GITHUB_SERVER_URL}/${context.repo.owner}/${context.repo.repo}/actions/runs/${process.env.GITHUB_RUN_ID}/artifacts)`
-                ])
-                .write();
-    
-
+  package:
+    name: Package Artifact
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
+      - uses: actions/checkout@v3
+      - run: |
+          echo "Test Results: PASS" > report.txt
+          zip report.zip report.txt
+      - uses: actions/upload-artifact@v3
+        with:
+          name: test-report
+          path: report.zip
+      - run: |
+          echo "## CI Summary [View full logs]($GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID)" >> $GITHUB_STEP_SUMMARY
+          echo "**OS:** ${{ runner.os }} | **Branch:** ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Artifact:** [Download report]($GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/artifacts)" >> $GITHUB_STEP_SUMMARY
+          echo "**Jobs:**" >> $GITHUB_STEP_SUMMARY
+          echo "- Validate: ${{ job.status }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Test: ${{ needs.test.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Package: ${{ job.status }}" >> $GITHUB_STEP_SUMMARY
