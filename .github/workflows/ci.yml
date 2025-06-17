@@ -6,10 +6,10 @@ env:
 on:
   push:
     branches:
-      - main
+      - ci/setup
   pull_request:
     branches:
-      - main
+      - ci/setup
 
 jobs:
   validate:
