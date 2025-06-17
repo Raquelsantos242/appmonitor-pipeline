@@ -1,76 +1,60 @@
-name: CI Pipeline
+  name: CI Pipeline
 
-env:
-  ACTIONS_STEP_DEBUG: true
+  env:
+    ACTIONS_STEP_DEBUG: true
 
-on:
-  push:
-    branches:
-      - ci/setup
-  pull_request:
-    branches:
-      - ci/setup
+  on:
+    push:
+      branches:
+        - ci/setup
+    pull_request:
+      branches:
+        - ci/setup
 
-jobs:
-  validate:
-    name: Validate Script Syntax
-    runs-on: ubuntu-latest
+  jobs:
+    validate:
+      name: Validate Script Syntax
+      runs-on: ubuntu-latest
+      steps:
+        - uses: actions/checkout@v3
+        - run: |
+            if ! bash -n status-check.sh; then
+              echo "::error::Falha na validação de sintaxe do script";
+              exit 1;
+            fi
 
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v3
+    test:
+      name: Run Tests
+      runs-on: ubuntu-latest
+      needs: validate
+      steps:
+        - uses: actions/checkout@v3
+        - run: |
+            echo "Running tests" && exit 0 || echo "::warning::Algum teste falhou"
 
-      - name: Validate script syntax
-        run: |
-          if ! bash -n status-check.sh; then
-            echo "::error::Falha na validação de sintaxe do script";
-            exit 1;
-          fi
-
-  test:
-    name: Run Tests
-    runs-on: ubuntu-latest
-    needs: validate
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v3
-
-      - name: Execute tests
-        run: |
-          echo "Running tests" && exit 0 || echo "::warning::Algum teste falhou"
-
-  package:
-    name: Package Artifact
-    runs-on: ubuntu-latest
-    needs: test
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v3
-
-      - name: Create report artifact
-        run: |
-          echo "Test Results: PASS" > report.txt
-          zip report.zip report.txt
-
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: test-report
-          path: report.zip
-
-      - name: Generate job summary
-        uses: actions/github-script@v6
-        with:
-          script: |
-            const { summary, context } = require('@actions/core');
-            summary.addHeading('📊 CI Summary');
-            summary.addList([
-              `OS Runner: \${process.env.RUNNER_OS}`,
-              `Ref Name: \${context.ref.replace('refs/heads/', '')}`,
-              `Validate: \${process.env.JOB_STATUS(validate)}`,
-              `Test: \${process.env.JOB_STATUS(test)}`,
-              `Artifact: [Download report](\${process.env.GITHUB_SERVER_URL}/\${context.repository}/suites/\${context.runId}/artifacts)`,
-            ]);
-            summary.write();
+    package:
+      name: Package Artifact
+      runs-on: ubuntu-latest
+      needs: test
+      steps:
+        - uses: actions/checkout@v3
+        - run: |
+            echo "Test Results: PASS" > report.txt
+            zip report.zip report.txt
+        - uses: actions/upload-artifact@v4
+          with:
+            name: test-report
+            path: report.zip
+        - uses: actions/github-script@v6
+          with:
+            script: |
+              const core = require('@actions/core');
+              const { context } = require('@actions/github');
+              const summary = core.summary;
+              summary.addList([
+                `${process.env.RUNNER_OS}`,
+                `${context.ref.replace('refs/heads/', '')}`,
+                `[Download report](${process.env.GITHUB_SERVER_URL}/${context.repo.owner}/${context.repo.repo}/actions/runs/${process.env.GITHUB_RUN_ID}/artifacts)`
+              ]);
+              summary.write();
+    
