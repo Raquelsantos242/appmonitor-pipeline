@@ -3,45 +3,15 @@ name: Diagnostic Workflow
 on:
   workflow_dispatch:
 
-env:
-  REQUIRED_VARS: APP_ENV,API_KEY
-
 jobs:
-  check-vars:
-    name: Verificar variáveis
-    runs-on: ubuntu-latest
-    steps:
-      - name: Verificar definições
-        run: |
-          missing=()
-          for var in ${REQUIRED_VARS//,/ }; do
-            if [ -z "${!var}" ]; then
-              missing+=("$var")
-            fi
-          done
-          if [ ${#missing[@]} -gt 0 ]; then
-            echo "::error::Variáveis faltando: ${missing[*]}"
-            exit 1
-          fi
-
   diagnose:
-    name: Diagnóstico e summary
     runs-on: ubuntu-latest
-    needs: check-vars
     steps:
-      - name: Registrar logs
-        run: |
-          echo "APP_ENV=${APP_ENV}"
-          echo "API_KEY definida: ${API_KEY:+true}"
-      - name: Gerar job summary
-        uses: actions/github-script@v6
-        with:
-          script: |
-            await core.summary
-              .addHeading('Diagnostic Summary')
-              .addList([
-                `APP_ENV: ${process.env.APP_ENV || 'undefined'}`,
-                `API_KEY definida: ${!!process.env.API_KEY}`,
-                'Confirme as variáveis no Settings › Environments ou nos Secrets'
-              ])
-              .write();
+      - run: |
+          [ -z "${{ vars.APP_ENV }}" ] && echo "::error::APP_ENV missing"
+          [ -z "${{ secrets.API_KEY }}" ] && echo "::error::API_KEY missing"
+          [ -n "${{ vars.APP_ENV }}" ] && [ -n "${{ secrets.API_KEY }}" ] || exit 1
+      - run: |
+          echo "## Diagnostic Summary" >> $GITHUB_STEP_SUMMARY
+          echo "APP_ENV: ${{ vars.APP_ENV || 'undefined' }}" >> $GITHUB_STEP_SUMMARY
+          echo "API_KEY: ${{ secrets.API_KEY && 'defined' || 'undefined' }}" >> $GITHUB_STEP_SUMMARY
